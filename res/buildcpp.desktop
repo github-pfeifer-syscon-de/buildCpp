@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Version=0.1
+Name=Build
+Comment=Build utility
+Categories=Application;Utility;
+Exec=buildcpp
+Icon=buildcpp

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<interface>
+  <!-- interface-requires gtk+ 3.0 -->
+   <menu id="menubar">
+    <submenu>
+      <attribute translatable="yes" name="label">File</attribute>
+      <section>
+        <item>
+          <attribute translatable="yes" name="label">Load</attribute>
+          <attribute name="action">win.load</attribute>
+        </item>
+        <item>
+          <attribute translatable="yes" name="label">Save</attribute>
+          <attribute name="action">win.save</attribute>
+        </item>
+        <item>
+          <attribute translatable="yes" name="label">Quit</attribute>
+          <attribute name="action">app.quit</attribute>
+        </item>
+      </section>
+    </submenu>
+  </menu>
+</interface>
