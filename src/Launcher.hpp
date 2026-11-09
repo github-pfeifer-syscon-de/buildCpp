@@ -43,7 +43,8 @@ public:
     explicit LineReader(const LineReader& orig) = delete;
     virtual ~LineReader();
 
-    virtual void ready(GIOChannel *channel);
+    void done();
+    void ready();
     void drain();
 protected:
     void reads();
@@ -53,6 +54,7 @@ protected:
     GIOChannel* m_channel{};
     ReaderListener* m_readerListener;
     guint m_source;
+    bool m_done{};
 };
 
 class LaunchCmd
@@ -72,6 +74,16 @@ public:
     }
     Glib::RefPtr<Gio::File> getWorkDir() {
         return m_projDir;
+    }
+    Glib::ustring getName() {
+        Glib::ustring name;
+        for (auto& param : m_param) {
+            if (!name.empty()) {
+                name += " ";
+            }
+            name += param;
+        }
+        return name;
     }
 protected:
     std::vector<std::string> m_param;

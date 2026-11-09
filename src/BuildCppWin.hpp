@@ -87,5 +87,8 @@ protected:
 
     std::shared_ptr<Launcher> m_launcher;
     std::list<PtrProjectCmd> m_commands;
+    Glib::RefPtr<Gtk::TextBuffer::Tag> m_tagErr;
+    Glib::RefPtr<Gtk::TextBuffer::Tag> m_tagOk;
+    Glib::RefPtr<Gtk::TextBuffer::Tag> m_tagFail;
 };
 

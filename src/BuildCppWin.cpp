@@ -49,6 +49,12 @@ BuildCppWin::BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builde
     m_treeView->set_model(findPaths());
 
 
+    m_tagErr = m_textView->get_buffer()->create_tag();
+    m_tagErr->property_foreground_rgba().set_value(Gdk::RGBA("#e0c040"));
+    m_tagOk = m_textView->get_buffer()->create_tag();
+    m_tagOk->property_foreground_rgba().set_value(Gdk::RGBA("#40e040"));
+    m_tagFail = m_textView->get_buffer()->create_tag();
+    m_tagFail->property_foreground_rgba().set_value(Gdk::RGBA("#e04040"));
     btn_build->signal_clicked().connect(sigc::mem_fun(*this, &BuildCppWin::build));
 
     // not working see CalcTextView
@@ -207,6 +213,7 @@ BuildCppWin::runNext()
         m_launcher = std::make_shared<Launcher>(this);
     }
     auto asyncCmd = std::dynamic_pointer_cast<AsyncCmd>(projectCmd);
+    notify(false, Glib::ustring::sprintf("Run %s\n", asyncCmd->getName()));
     asyncCmd->prepare();
     m_launcher->run(asyncCmd);
 }
@@ -215,30 +222,41 @@ void
 BuildCppWin::notify(bool err, const std::string& str)
 {
     //std::cout << "Project::notify " << (err ? "err" : "std") << " " << string << std::endl;
-    Glib::ustring msg;
-    msg.reserve(str.length() + 5);
-    if (err) {
-        msg = "Err ";
-    }
-    msg += str;
     auto buf= m_textView->get_buffer();
     auto ins = buf->get_insert();
-    auto end = buf->insert(ins->get_iter(), msg);
+    auto start = ins->get_iter();
+    auto end = start;
+    if (err) {
+        end = buf->insert_with_tag(start, str, m_tagErr);
+    }
+    else {
+        end = buf->insert(start, str);
+    }
     m_textView->scroll_to(end);
 }
 
 void
 BuildCppWin::done(bool stat, int exit)
 {
+    Glib::ustring msg;
+    Glib::RefPtr<Gtk::TextBuffer::Tag>  tag;
     if (exit == 0) {
-        m_textView->get_buffer()->insert_at_cursor(
-            "Completed successfully\n");
+        tag = m_tagOk;
+        msg = "Completed successfully\n";
     }
     else {
-         m_textView->get_buffer()->insert_at_cursor(
-         Glib::ustring::sprintf("Failed %d\n", exit));
+        tag = m_tagFail;
+        msg = Glib::ustring::sprintf("Failed %d\n", exit);
         m_commands.clear();     // stop executing
     }
-    runNext();
+    auto buf= m_textView->get_buffer();
+    auto ins = buf->get_insert();
+    auto start = ins->get_iter();
+    buf->insert_with_tag(start, msg, tag);
+    // avoid overlapping cleanup&startup
+    Glib::signal_idle().connect( [&] -> bool {
+        runNext();
+        return false;
+    });
 }
 

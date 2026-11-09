@@ -71,11 +71,17 @@ static gboolean
 cb_out_watch(GIOChannel *channel, GIOCondition cond, gpointer user_data)
 {
     if (cond == G_IO_HUP) {
+        //std::cout << "cb_out_watch shut " << static_cast<void*>(channel) << std::endl;
+        g_io_channel_shutdown(channel, FALSE, nullptr);
+        if (user_data != nullptr) {
+            auto reader = static_cast<LineReader*>(user_data);
+            reader->done();
+        }
         return FALSE;
     }
-    if (user_data) {
+    if (user_data != nullptr) {
         auto reader = static_cast<LineReader*>(user_data);
-        reader->ready(channel);
+        reader->ready();
     }
     else {
         psc::log::Log::logAdd(psc::log::Level::Error,
@@ -102,27 +108,32 @@ LineReader::LineReader(gint out, bool err, ReaderListener* readerListener)
                           return psc::fmt::format("error {} set enconding", error->message);
                       });
     }
-    /* Add watches to channels (read callback) */
+    /* Add watches to channels (read/hup callback) */
     m_source = g_io_add_watch(m_channel, static_cast<GIOCondition>(G_IO_IN | G_IO_HUP), cb_out_watch, this);   // (GIOFunc)
 }
 
 LineReader::~LineReader()
 {
-    g_io_channel_shutdown(m_channel, FALSE, nullptr);
-    if (m_channel) {
+    if (m_channel != nullptr) {
         g_io_channel_unref(m_channel);
     }
     close(m_out);
 }
 
 void
-LineReader::ready(GIOChannel *channel)
+LineReader::done()
+{
+    m_done = true;
+}
+
+void
+LineReader::ready()
 {
     while (true) {
         g_autoptr(GError) error{};
         gchar *string{};
         gsize size{0};
-        g_io_channel_read_line(channel, &string, &size, nullptr, &error);
+        g_io_channel_read_line(m_channel, &string, &size, nullptr, &error);
         if (error) {
             psc::log::Log::logAdd(psc::log::Level::Error,
                           [&] {
@@ -130,9 +141,13 @@ LineReader::ready(GIOChannel *channel)
                           });
             break;
         }
-        m_readerListener->notify(m_err, string);
-        g_free(string);
-        auto cond = g_io_channel_get_buffer_condition(channel);
+        if (string != nullptr) {
+            //std::cout << "LineReader::ready read " << static_cast<void*>(m_channel)
+            //          << " len " << std::strlen(string) << std::endl;
+            m_readerListener->notify(m_err, string);
+            g_free(string);
+        }
+        auto cond = g_io_channel_get_buffer_condition(m_channel);
         if ((cond & static_cast<GIOCondition>(G_IO_IN)) == 0) {
             break;
         }
@@ -142,6 +157,10 @@ LineReader::ready(GIOChannel *channel)
 void
 LineReader::drain()
 {
+    if (m_done) {   // have already shut this
+        return;
+    }
+    //std::cout << "LineReader::drain " << static_cast<void*>(m_channel) << std::endl;
     //if (!g_source_is_destroyed(m_source)) {   // there are different sources for gio&gtk
     g_source_remove(m_source);   // stop messaging
     //}
@@ -155,10 +174,9 @@ LineReader::drain()
                           return psc::fmt::format("error {} reading", error->message);
                       });
     }
-    else if (string == nullptr) {
-        return;
-    }
-    else if (std::strlen(string) > 0) {
+    else if (string != nullptr && std::strlen(string) > 0) {
+    std::cout << "LineReader::drain " << static_cast<void*>(m_channel)
+              << " len " << std::strlen(string) << std::endl;
         m_readerListener->notify(m_err, string);
         //const char* pos = string;
         //while (pos < string + size) {
