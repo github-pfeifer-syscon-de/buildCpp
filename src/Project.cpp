@@ -17,6 +17,8 @@
  */
 
 #include <iostream>
+#include <psc_Files.hpp>
+#include <cstring>
 
 #include "Project.hpp"
 #include "BuildCppWin.hpp"
@@ -25,12 +27,21 @@
 Glib::ustring
 Project::getPath()
 {
-
     return (m_file->get_basename());
 }
 
 Glib::ustring
-Project::getLast() {
+Project::getName()
+{
+    if (m_name.empty()) {   // should scan PKBUILD for adjusted name...
+        m_name = (m_file->get_basename());
+    }
+    return m_name;
+}
+
+Glib::ustring
+Project::getLast()
+{
     if (m_last.empty()) {
         auto lastTime = Glib::DateTime::create_now_utc(0);
         auto iter = m_file->enumerate_children(m_cancel);
@@ -60,8 +71,7 @@ Project::getDiff() {
             auto buildInfo = build->query_info();
             auto srcMod = srcInfo->get_modification_date_time();
             auto buildMod = buildInfo->get_modification_date_time();
-            auto diff = srcMod.difference(buildMod);
-            bool neg{};
+            auto diff = buildMod.difference(srcMod);
             if (diff < 0) {
                 diff = -diff;
                 m_diff = "-";
@@ -72,11 +82,50 @@ Project::getDiff() {
             diff -= hours * USEC_HOURS;
             auto minutes = (diff / USEC_MINUTES);
             diff -= minutes * USEC_MINUTES;
-            m_diff += Glib::ustring::format("%ld:%ld:%ld", days, hours, minutes);
+            m_diff += Glib::ustring::sprintf("%ld:%ld:%ld", days, hours, minutes);
         }
     }
     return m_diff;
 }
+
+std::list<PtrProjectCmd>
+Project::getBuildCmds(const std::shared_ptr<KeyConfig>& config)
+{
+    std::list<PtrProjectCmd> commands;
+    auto syncCmd = std::make_shared<PrepareCmd>(this);
+    commands.emplace_back(std::move(syncCmd));
+    auto asyncCmd = std::make_shared<AsyncCmd>();
+    asyncCmd->addParam("makepkg");
+    asyncCmd->addParam("--syncdeps");
+    asyncCmd->addParam("--force");
+    asyncCmd->setWorkDir(getBuildDir());
+    commands.emplace_back(std::move(asyncCmd));
+    asyncCmd = std::make_shared<Repoadd>(this, false);
+    asyncCmd->addParam("repo-add");
+    auto packDb = config->getString(BuildCppWin::MAIN_GRP, BuildCppWin::PACMAN_DB_KEY);
+    asyncCmd->addParam(packDb);
+    asyncCmd->setWorkDir(getBuildDir());
+    commands.emplace_back(std::move(asyncCmd));
+    asyncCmd = std::make_shared<Repoadd>(this, true);
+    asyncCmd->addParam("repo-add");
+    asyncCmd->addParam(packDb);
+    asyncCmd->setWorkDir(getBuildDir());
+    commands.emplace_back(std::move(asyncCmd));
+    auto pacmanCmd = std::make_shared<PacmanCmd>(this);
+    pacmanCmd->addParam("sudo");
+    pacmanCmd->addAskpass(config->getString(BuildCppWin::MAIN_GRP, BuildCppWin::ASKPASS_KEY));
+    pacmanCmd->addParam("/usr/bin/pacman");
+    pacmanCmd->addParam("--noconfirm");
+    pacmanCmd->addParam("--sync");
+    pacmanCmd->addParam("--refresh");
+    pacmanCmd->addParam(getName());
+    pacmanCmd->addParam(getName() + "-debug");
+    pacmanCmd->setWorkDir(getBuildDir());
+    commands.emplace_back(std::move(pacmanCmd));
+
+    return commands;
+}
+
 
 void
 Project::findPaths(const Glib::RefPtr<Gio::File>& fBuildRoot
@@ -103,5 +152,12 @@ Project::findPaths(const Glib::RefPtr<Gio::File>& fBuildRoot
             }
         }
     }
+}
+
+Glib::RefPtr<Gio::File>
+Project::getBuildDir()
+{
+    auto build = m_file->get_child(BUILD_DIR);
+    return build;
 }
 

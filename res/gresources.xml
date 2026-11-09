@@ -5,4 +5,8 @@
     <file preprocess="xml-stripblanks">build-win.ui</file>
     <file>buildcpp.png</file>
   </gresource>
+  <gresource prefix="/de/pfeifer_syscon/askpasscpp">
+    <file preprocess="xml-stripblanks">askpass-dlg.ui</file>
+    <!-- file>buildcpp.png</file -->
+  </gresource>
 </gresources>

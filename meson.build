@@ -52,6 +52,7 @@ deps = [gtkmm3_deps
 subdir('src')
 subdir('res')
 sources += app_resources
+src_askpass += app_resources
 sources += win_res_file
 
 project_targt = executable(meson.project_name()
@@ -61,3 +62,11 @@ project_targt = executable(meson.project_name()
     , link_with: []
     , win_subsystem: 'windows'  # disable this to see console output for windows
     )
+
+askpass_target = executable('askpasscpp'
+    , src_askpass
+    , dependencies: deps
+    , install: true
+    , link_with: []
+    , win_subsystem: 'windows'  # disable this to see console output for windows
+)

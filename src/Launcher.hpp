@@ -1,0 +1,110 @@
+/* -*- Mode: c++; c-basic-offset: 4; tab-width: 4; coding: utf-8; -*-  */
+/*
+ * Copyright (C) 2026 RPf
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+#pragma once
+
+#include <giomm.h>
+#include <memory>
+#include <queue>
+#include <atomic>
+#include <mutex>
+
+class RpcLaunch;
+
+class ReaderListener
+{
+public:
+    ReaderListener() = default;
+    virtual ~ReaderListener() = default;
+
+    virtual void notify(bool err, const std::string& str) = 0;
+    virtual void done(bool stat, int exit) = 0;
+};
+
+
+class LineReader
+{
+public:
+    LineReader(gint out, bool err, ReaderListener* readerListener);
+    explicit LineReader(const LineReader& orig) = delete;
+    virtual ~LineReader();
+
+    virtual void ready(GIOChannel *channel);
+    void drain();
+protected:
+    void reads();
+
+    gint m_out;
+    bool m_err;
+    GIOChannel* m_channel{};
+    ReaderListener* m_readerListener;
+    guint m_source;
+};
+
+class LaunchCmd
+{
+public:
+    LaunchCmd() = default;
+    explicit LaunchCmd(const LaunchCmd& orig) = delete;
+    virtual ~LaunchCmd() = default;
+    void addParam(const std::string& cmd) {
+        m_param.push_back(cmd);
+    }
+    virtual std::vector<std::string>& getParam() {
+        return m_param;
+    }
+    void setWorkDir(const Glib::RefPtr<Gio::File>& projDir) {
+        m_projDir = projDir;
+    }
+    Glib::RefPtr<Gio::File> getWorkDir() {
+        return m_projDir;
+    }
+protected:
+    std::vector<std::string> m_param;
+    Glib::RefPtr<Gio::File> m_projDir;
+};
+
+using PtrLaunchCmd = std::shared_ptr<LaunchCmd>;
+
+class Launcher
+{
+public:
+    Launcher(ReaderListener* readerListener)
+    : m_readerListener{readerListener}
+    {
+    }
+    explicit Launcher(const RpcLaunch& orig) = delete;
+    virtual ~Launcher() = default;
+
+    void run(const PtrLaunchCmd& launchCmd);
+    void communicate(const std::string& message);
+    void childExited(bool stat, int exit);
+    GPid getChildPid() {
+        return child_pid;
+    }
+protected:
+    void doCommunicate(const std::string& message);
+
+private:
+    ReaderListener* m_readerListener;
+    std::shared_ptr<LineReader> m_readerStd;
+    std::shared_ptr<LineReader> m_readerErr;
+    Glib::RefPtr<Gio::UnixOutputStream> m_strmStdin;
+    gint child_stdout, child_stderr, child_stdin;
+    GPid child_pid;
+    std::vector<Glib::ustring> m_args;
+};

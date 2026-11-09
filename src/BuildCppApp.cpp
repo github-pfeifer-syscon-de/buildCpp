@@ -47,7 +47,7 @@ BuildCppApp::on_activate()
         m_buildAppWindow->show();
     }
     catch (const Glib::Error &ex) {
-        std::cerr << "Unable to load calc-win: " << ex.what() << std::endl;
+        std::cerr << "Unable to load build-win: " << ex.what() << std::endl;
     }
 }
 
@@ -126,9 +126,9 @@ BuildCppApp::get_exec_path()
 void
 BuildCppApp::on_startup()
 {
-#   ifdef DEBUG_BUILDCPPAPP
+#ifdef DEBUG_BUILDCPPAPP
     std::cout << "BuildCppApp::on_startup" << std::endl;
-#   endif
+#endif
     Gtk::Application::on_startup();
 
     add_action("quit", sigc::mem_fun(*this, &BuildCppApp::on_action_quit));

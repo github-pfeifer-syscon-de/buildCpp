@@ -50,7 +50,8 @@ class BuildCppApp;
  *   uses settings to store and application state.
  */
 class BuildCppWin
-: public Gtk::ApplicationWindow {
+: public Gtk::ApplicationWindow
+, public ReaderListener {
 public:
     BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builder>& refBuilder, BuildCppApp *appl);
     virtual ~BuildCppWin() = default;
@@ -60,13 +61,20 @@ public:
     void apply_font(bool defaultFont);
     BuildCppApp *getApplication();
     std::shared_ptr<KeyConfig> getSettings();
+
     static constexpr auto MAIN_GRP{"Main"};
     static constexpr auto PROJ_ROOT_KEY{"ProjRoot"};
+    static constexpr auto PACMAN_DB_KEY{"PacmanDb"};
+    static constexpr auto ASKPASS_KEY{"Askpass"};
 protected:
+    void done(bool stat, int exit) override;
+    void notify(bool err, const std::string& str) override;
+    void runNext();
+
     ProjListColumns m_listColumns;
 
     Glib::RefPtr<Gtk::ListStore> findPaths();
-
+    void build();
     void load_config();
     void save_config();
     void activate_actions();
@@ -77,5 +85,7 @@ protected:
     std::shared_ptr<KeyConfig> m_settings;
     Glib::RefPtr<Gio::Cancellable> m_cancel;
 
+    std::shared_ptr<Launcher> m_launcher;
+    std::list<PtrProjectCmd> m_commands;
 };
 

@@ -20,7 +20,7 @@
 #include <StringUtils.hpp>
 #include <psc_Files.hpp>
 #include <Log.hpp>  // formatter Glib::Error
-
+#include <cstring>
 
 
 #include "BuildCppWin.hpp"
@@ -49,9 +49,7 @@ BuildCppWin::BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builde
     m_treeView->set_model(findPaths());
 
 
-    btn_build->signal_clicked().connect([&] {
-
-    });
+    btn_build->signal_clicked().connect(sigc::mem_fun(*this, &BuildCppWin::build));
 
     // not working see CalcTextView
     //set_events(Gdk::KEY_PRESS_MASK);
@@ -60,11 +58,26 @@ BuildCppWin::BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builde
     show_all_children();
 }
 
-
 void
 BuildCppWin::activate_actions()
 {
 
+}
+
+void
+BuildCppWin::build()
+{
+    auto iter = m_treeView->get_selection()->get_selected();
+    if (iter) {
+        auto row = *iter;
+        auto proj = row.get_value(m_listColumns.proj);
+        auto cmds = proj->getBuildCmds(m_settings);
+        m_commands.splice(m_commands.end(), cmds);
+        runNext();
+    }
+    else {
+        show_error("Please select project.");
+    }
 }
 
 Glib::RefPtr<Gtk::ListStore>
@@ -72,15 +85,24 @@ BuildCppWin::findPaths()
 {
     auto buildRoot = m_settings->getString(MAIN_GRP, PROJ_ROOT_KEY);
     Glib::RefPtr<Gio::File> fBuildRoot;
+    bool saveConfig{};
     if (buildRoot.empty()) {
         auto home = Glib::get_home_dir();
         auto fHome = Gio::File::create_for_path(home);
         fBuildRoot = fHome->get_child(Project::DEFAULT_BUILD_ROOT);
         m_settings->setString(MAIN_GRP, PROJ_ROOT_KEY, fBuildRoot->get_path());
-        save_config();
+        saveConfig = true;
     }
     else {
         fBuildRoot = Gio::File::create_for_path(buildRoot);
+    }
+    auto packDb = m_settings->getString(MAIN_GRP, PACMAN_DB_KEY);
+    if (packDb.empty()) {
+        m_settings->setString(MAIN_GRP, PACMAN_DB_KEY, "/var/local/pacman/custom.db.tar.gz");
+        saveConfig = true;
+    }
+    if (saveConfig) {
+        save_config();
     }
     auto list = Gtk::ListStore::create(m_listColumns);
     Project::findPaths(fBuildRoot, list,m_listColumns, m_cancel);
@@ -138,22 +160,6 @@ BuildCppWin::save_config()
 {
     if (m_settings) {
         m_settings->saveConfig();
-        // int width, height;
-        // get_size(width, height);
-        // int x,y;
-        // get_position(x, y);
-        // Glib::RefPtr<Gdk::Screen> screen = get_screen();
-        // Glib::RefPtr<Gdk::Display> display = screen->get_display();
-        // //settings.set_string (config_screen, display.get_name());
-        // auto posTup = std::make_tuple(x, y);
-        // auto pos = Glib::Variant<std::tuple<int, int>>::create(posTup);
-        // //std::cout << "Saving V pos " << pos.print(true) << std::endl;
-        // //stdout.printf ("Saving set pos %s\n", pos.print (true));
-        // m_settings->set_value(CONFIG_POS, pos);
-        // auto sizeTup = std::make_tuple(width, height);
-        // auto size = Glib::Variant<std::tuple<int, int>>::create(sizeTup);
-        // //stdout.printf ("Saving set size %s\n", size.print (true));
-        // m_settings->set_value(CONFIG_SIZE, size);
     }
 }
 
@@ -174,3 +180,65 @@ BuildCppWin::show_error(const Glib::ustring& msg, Gtk::MessageType type)
     messagedialog.run();
     messagedialog.hide();
 }
+
+void
+BuildCppWin::runNext()
+{
+    PtrProjectCmd projectCmd;
+    while (true) {  // work on sync commands
+        if (m_commands.empty()) {
+            return;
+        }
+        projectCmd = m_commands.front();
+        m_commands.pop_front();
+        auto syncCmd = std::dynamic_pointer_cast<SyncCmd>(projectCmd);
+        if (syncCmd) {
+            if (!syncCmd->run()) {
+                show_error("Error running command!");
+                m_commands.clear(); // break exec
+            }
+            continue;
+        }
+        else {
+            break;
+        }
+    }
+    if (!m_launcher) {
+        m_launcher = std::make_shared<Launcher>(this);
+    }
+    auto asyncCmd = std::dynamic_pointer_cast<AsyncCmd>(projectCmd);
+    asyncCmd->prepare();
+    m_launcher->run(asyncCmd);
+}
+
+void
+BuildCppWin::notify(bool err, const std::string& str)
+{
+    //std::cout << "Project::notify " << (err ? "err" : "std") << " " << string << std::endl;
+    Glib::ustring msg;
+    msg.reserve(str.length() + 5);
+    if (err) {
+        msg = "Err ";
+    }
+    msg += str;
+    auto buf= m_textView->get_buffer();
+    auto ins = buf->get_insert();
+    auto end = buf->insert(ins->get_iter(), msg);
+    m_textView->scroll_to(end);
+}
+
+void
+BuildCppWin::done(bool stat, int exit)
+{
+    if (exit == 0) {
+        m_textView->get_buffer()->insert_at_cursor(
+            "Completed successfully\n");
+    }
+    else {
+         m_textView->get_buffer()->insert_at_cursor(
+         Glib::ustring::sprintf("Failed %d\n", exit));
+        m_commands.clear();     // stop executing
+    }
+    runNext();
+}
+
