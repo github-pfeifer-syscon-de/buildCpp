@@ -217,7 +217,7 @@ Project::getBuildCmds(const std::shared_ptr<KeyConfig>& config)
     auto pacmanCmd = std::make_shared<PacmanCmd>(this);
     pacmanCmd->addParam("sudo");
     pacmanCmd->addAskpass(config->getString(BuildCppWin::MAIN_GRP, BuildCppWin::ASKPASS_KEY));
-    pacmanCmd->addParam("--");
+    pacmanCmd->addParam("--shell");
     pacmanCmd->addParam("pacman");
     pacmanCmd->addParam("--noconfirm");
     pacmanCmd->addParam("--sync");

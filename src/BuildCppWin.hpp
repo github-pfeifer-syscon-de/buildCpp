@@ -90,5 +90,6 @@ protected:
     Glib::RefPtr<Gtk::TextBuffer::Tag> m_tagErr;
     Glib::RefPtr<Gtk::TextBuffer::Tag> m_tagOk;
     Glib::RefPtr<Gtk::TextBuffer::Tag> m_tagFail;
+    PtrAsyncCmd m_asyncCmd;
 };
 

@@ -50,18 +50,12 @@ child_watch_cb(GPid     pid,
         if (error) {
             exit = error->code;
         }
-        psc::log::Log::logAdd(psc::log::Level::Debug,
-                              [&] {
-                                  return psc::fmt::format("wait_stat {} exit {}", stat, exit);
-                              });
+        std::cout <<  psc::fmt::format("wait_stat {} exit {}", stat, exit) << std::endl;
         auto launcher = static_cast<Launcher*>(user_data);
         launcher->childExited(stat, exit);
     }
     else {
-        psc::log::Log::logAdd(psc::log::Level::Error,
-                              [&] {
-                                  return ("child_watch_cb no user_data");
-                              });
+        std::cout << ("child_watch_cb no user_data") << std::endl;
     }
     g_spawn_close_pid(pid);
 }
@@ -70,25 +64,21 @@ child_watch_cb(GPid     pid,
 static gboolean
 cb_out_watch(GIOChannel *channel, GIOCondition cond, gpointer user_data)
 {
+    LineReader*  reader{};
+    if (user_data != nullptr) {
+         reader = static_cast<LineReader*>(user_data);
+    }
+    else {
+        std::cout << ("cb_out_watch output no user_data!") << std::endl;
+        return FALSE;
+    }
     if (cond == G_IO_HUP) {
         //std::cout << "cb_out_watch shut " << static_cast<void*>(channel) << std::endl;
         g_io_channel_shutdown(channel, FALSE, nullptr);
-        if (user_data != nullptr) {
-            auto reader = static_cast<LineReader*>(user_data);
-            reader->done();
-        }
+        reader->done();
         return FALSE;
     }
-    if (user_data != nullptr) {
-        auto reader = static_cast<LineReader*>(user_data);
-        reader->ready();
-    }
-    else {
-        psc::log::Log::logAdd(psc::log::Level::Error,
-                      [&] {
-                          return ("cb_out_watch output no user_data!");
-                      });
-    }
+    reader->ready();
     return TRUE;
 }
 
@@ -135,20 +125,19 @@ LineReader::ready()
         gsize size{0};
         g_io_channel_read_line(m_channel, &string, &size, nullptr, &error);
         if (error) {
-            psc::log::Log::logAdd(psc::log::Level::Error,
-                          [&] {
-                              return psc::fmt::format("error {} reading", error->message);
-                          });
+            std::cout <<  psc::fmt::format("error {} reading", error->message) << std::endl;
             break;
         }
         if (string != nullptr) {
             //std::cout << "LineReader::ready read " << static_cast<void*>(m_channel)
-            //          << " len " << std::strlen(string) << std::endl;
+            //          << " str \"" << string << "\"" << std::endl;
             m_readerListener->notify(m_err, string);
             g_free(string);
         }
         auto cond = g_io_channel_get_buffer_condition(m_channel);
-        if ((cond & static_cast<GIOCondition>(G_IO_IN)) == 0) {
+        //std::cout << "LineReader::ready read " << static_cast<void*>(m_channel)
+        //          << " cond " << cond << std::endl;
+        if ((cond & static_cast<GIOCondition>(G_IO_IN)) == 0) { // break if nothoing more to read
             break;
         }
     }
@@ -169,28 +158,12 @@ LineReader::drain()
     gsize size{};
     g_io_channel_read_to_end(m_channel, &string, &size, &error);
     if (error) {
-        psc::log::Log::logAdd(psc::log::Level::Error,
-                      [&] {
-                          return psc::fmt::format("error {} reading", error->message);
-                      });
+         std::cout << psc::fmt::format("error {} reading", error->message) << std::endl;
     }
     else if (string != nullptr && std::strlen(string) > 0) {
-    std::cout << "LineReader::drain " << static_cast<void*>(m_channel)
-              << " len " << std::strlen(string) << std::endl;
+        //std::cout << "LineReader::drain " << static_cast<void*>(m_channel)
+        //          << " str \"" << string << "\"" << std::endl;
         m_readerListener->notify(m_err, string);
-        //const char* pos = string;
-        //while (pos < string + size) {
-        //    const char* next = std::strchr(pos, '\n');
-        //    if (next == nullptr) {
-        //        if (std::strlen(pos) > 0) {
-        //            m_readerListener->notify(m_err, pos);
-        //        }
-        //        break;
-        //    }
-        //    std::string line(pos, next + 1);
-        //    m_readerListener->notify(m_err, line);
-        //    pos = next + 1;
-        //}
         g_free(string);
     }
 }
@@ -272,23 +245,20 @@ Launcher::run(const PtrLaunchCmd& launchCmd)
     g_spawn_async_with_pipes(workDir.c_str() // workingdir
                             , &argv[0]  // arguments
                             , launchCmd->getRunEnv()   // env
-                            , static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH)   //
+                            , static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH)
                             , nullptr   // child_setup
                             , this      // user data
                             , &child_pid
                             , &child_stdin, &child_stdout, &child_stderr
                             , &error);
     if (error) {
-        psc::log::Log::logAdd(psc::log::Level::Error,
-                  [&] {
-                      return psc::fmt::format("error {} spawning child failed", error->message);
-                  });
+        std::cout <<   psc::fmt::format("error {} spawning child failed", error->message) << std::endl;
         return;
     }
-    psc::log::Log::logAdd(psc::log::Level::Debug,
-              [&] {
-                  return psc::fmt::format("spawning child {} in {} out {} err {}", child_pid, child_stdin, child_stdout, child_stderr);
-              });
+    //for (size_t i = 0; i < argv.size(); ++i) {
+    //    std::cout << "cmd[" << i << "] " << (argv[i] != nullptr ? argv[i] : "null") << std::endl;
+    //}
+    std::cout <<  psc::fmt::format("spawning child {} in {} out {} err {}", child_pid, child_stdin, child_stdout, child_stderr) << std::endl;
     // Add a child watch function which will be called when the child process
     // exits.
     g_child_watch_add(child_pid, child_watch_cb, this);
@@ -310,8 +280,8 @@ void
 Launcher::childExited(bool stat, int exit)
 {
     if (stat) { //  && exit == 0
-    //    m_readerStd->drain();   // transfer remaining messages before starting new
-    //    m_readerErr->drain();
+        m_readerStd->drain();   // transfer remaining messages before starting new
+        m_readerErr->drain();
     }
     m_readerListener->done(stat, exit);
 }

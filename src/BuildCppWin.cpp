@@ -120,32 +120,6 @@ BuildCppWin::findPaths()
     return list;
 }
 
-void
-BuildCppWin::apply_font(bool defaultFont )
-{
-    //Glib::ustring font = m_settings->get_string(CONFIG_FONT);
-    //Glib::RefPtr<Gtk::TextBuffer> buffer = m_textView->get_buffer();
-
-  //   if (!defaultFont) {
-		// if (!m_fontTag) {
-		// 		m_fontTag = buffer->create_tag();
-		// 		m_settings->bind(CONFIG_FONT, m_fontTag.get(), "font");
-		// 		//std::cout << "Bind font " << font << std::endl;
-		// }
-		// buffer->apply_tag(m_fontTag, start_iter, end_iter);
-		// 	//std::cout << "   apply font " << font
-		// 	//          << " start " <<  start_iter.get_line()
-		// 	//          << " end " <<  end_iter.get_line()
-		// 	//          << std::endl;
-  //   }
-  //   else {
-  //       if (m_fontTag) {
-		// 	buffer->remove_tag(m_fontTag, start_iter, end_iter);
-		// 	m_fontTag.clear();
-  //           //std::cout << "   clear font " << font << std::endl;
-  //       }
-  //   }
-}
 
 BuildCppApp *
 BuildCppWin::getApplication()
@@ -217,10 +191,11 @@ BuildCppWin::runNext()
     if (!m_launcher) {
         m_launcher = std::make_shared<Launcher>(this);
     }
-    auto asyncCmd = std::dynamic_pointer_cast<AsyncCmd>(projectCmd);
-    asyncCmd->prepare();
-    notify(false, Glib::ustring::sprintf("Run %s\n", asyncCmd->getName()));
-    m_launcher->run(asyncCmd);
+    // important keep pointer referenced
+    m_asyncCmd = std::dynamic_pointer_cast<AsyncCmd>(projectCmd);
+    m_asyncCmd->prepare();
+    notify(false, Glib::ustring::sprintf("Run %s\n", m_asyncCmd->getName()));
+    m_launcher->run(m_asyncCmd);
 }
 
 void

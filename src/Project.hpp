@@ -122,6 +122,8 @@ public:
 
 };
 
+using PtrAsyncCmd = std::shared_ptr<AsyncCmd>;
+
 class PrepareCmd
 : public SyncCmd
 {
