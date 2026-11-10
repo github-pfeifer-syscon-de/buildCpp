@@ -107,6 +107,11 @@ BuildCppWin::findPaths()
         m_settings->setString(MAIN_GRP, PACMAN_DB_KEY, "/var/local/pacman/custom.db.tar.gz");
         saveConfig = true;
     }
+    auto askpass = m_settings->getString(MAIN_GRP, ASKPASS_KEY);
+    if (askpass.empty()) {
+        m_settings->setString(MAIN_GRP, ASKPASS_KEY, PREFIX_DIR "/bin/askpasscpp");
+        saveConfig = true;
+    }
     if (saveConfig) {
         save_config();
     }
@@ -213,8 +218,8 @@ BuildCppWin::runNext()
         m_launcher = std::make_shared<Launcher>(this);
     }
     auto asyncCmd = std::dynamic_pointer_cast<AsyncCmd>(projectCmd);
-    notify(false, Glib::ustring::sprintf("Run %s\n", asyncCmd->getName()));
     asyncCmd->prepare();
+    notify(false, Glib::ustring::sprintf("Run %s\n", asyncCmd->getName()));
     m_launcher->run(asyncCmd);
 }
 
@@ -254,7 +259,7 @@ BuildCppWin::done(bool stat, int exit)
     auto start = ins->get_iter();
     buf->insert_with_tag(start, msg, tag);
     // avoid overlapping cleanup&startup
-    Glib::signal_idle().connect( [&] -> bool {
+    Glib::signal_idle().connect( [&] () -> bool {
         runNext();
         return false;
     });

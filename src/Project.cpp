@@ -23,6 +23,99 @@
 #include "Project.hpp"
 #include "BuildCppWin.hpp"
 
+std::vector<Glib::RefPtr<Gio::File>>
+ProjectCmd::findPackages(Project* project)
+{
+    std::vector<Glib::RefPtr<Gio::File>> packages;
+    packages. reserve(2);
+    auto buildDir = project->getBuildDir();
+    auto iter = buildDir->enumerate_children(project->getCancel());
+    while (true) {
+        auto fileInfo = iter->next_file();
+        if (!fileInfo) {
+            break;
+        }
+        if (fileInfo->get_file_type() == Gio::FileType::FILE_TYPE_REGULAR
+         && StringUtils::endsWith(fileInfo->get_name(), Project::PACK_SUFFIX)) {
+            auto file = iter->get_child(fileInfo);
+            packages.push_back(file);
+         }
+    }
+    return packages;
+}
+
+bool
+PrepareCmd::run() {
+    auto packages = findPackages(m_project);
+    for (auto& package : packages) {
+        package->remove(m_project->getCancel());
+    }
+    return linkPkgbuild(m_project);
+};
+
+
+bool
+PrepareCmd::linkPkgbuild(Project* project)
+{
+    auto buildDir = project->getBuildDir();
+    auto buildRoot = buildDir->get_parent()->get_parent();
+    auto pkgBuild = buildRoot->get_child(project->getProjectDir()->get_basename() + Project::PKGBUILD_NAME);
+    if (pkgBuild->query_exists()) {
+        auto pkgBuildTarget = buildDir->get_child(Project::PKGBUILD_NAME);
+        if (!pkgBuildTarget->query_exists()) {
+            //pkgBuildTarget->query_file_type() != Gio::FileType::FILE_TYPE_SYMBOLIC_LINK) {
+            return pkgBuildTarget->make_symbolic_link(pkgBuild->get_path());
+        }
+        return true;
+    }
+    return false;
+}
+
+
+void
+Repoadd::prepare()
+{
+    auto packDb = m_param[1];
+    auto packDbFile = Gio::File::create_for_path(packDb);
+    auto packDir = packDbFile->get_parent();
+    setWorkDir(packDir);
+    auto packs = findPackages(m_project);
+    for (auto& pack : packs) {
+        auto baseName = pack->get_basename();
+        //std::cout << "Repoadd::prepare " << baseName << std::endl;
+        auto movedPack = packDir->get_child(baseName);
+        pack->move(movedPack, Gio::FILE_COPY_OVERWRITE);
+        addParam(baseName);
+    }
+}
+
+void
+PacmanCmd::addAskpass(const std::string& askpass) {
+    m_askpass = askpass;
+    auto askpassEnv = Glib::getenv(ASKPASS_ENV);
+    if (askpassEnv.empty()) {
+        if (m_askpass.empty()) {
+            std::cout << "A existing environment var SUDO_ASKPASS was not found, "
+                          "and the setting ~/.config/buildcpp.conf Askpass=path_askpass_executable was missing as well, "
+                          "this might work if the user can use sudo directly (not recommended)" << std::endl;
+        }
+        else {
+            m_setaskPass = true;
+        }
+    }
+    addParam("--askpass");
+}
+
+void
+PacmanCmd::prepare() {
+    auto packs = findPackages(m_project);
+    for (auto pack : packs) {
+        addParam(pack->get_path());
+    }
+    if (m_setaskPass) {
+        Glib::setenv(ASKPASS_ENV, m_askpass);
+    }
+}
 
 Glib::ustring
 Project::getPath()
@@ -100,21 +193,15 @@ Project::getBuildCmds(const std::shared_ptr<KeyConfig>& config)
     asyncCmd->addParam("--force");
     asyncCmd->setWorkDir(getBuildDir());
     commands.emplace_back(std::move(asyncCmd));
-    asyncCmd = std::make_shared<Repoadd>(this, false);
+    asyncCmd = std::make_shared<Repoadd>(this);
     asyncCmd->addParam("repo-add");
     auto packDb = config->getString(BuildCppWin::MAIN_GRP, BuildCppWin::PACMAN_DB_KEY);
     asyncCmd->addParam(packDb);
-    asyncCmd->setWorkDir(getBuildDir());
-    commands.emplace_back(std::move(asyncCmd));
-    asyncCmd = std::make_shared<Repoadd>(this, true);
-    asyncCmd->addParam("repo-add");
-    asyncCmd->addParam(packDb);
-    asyncCmd->setWorkDir(getBuildDir());
     commands.emplace_back(std::move(asyncCmd));
     auto pacmanCmd = std::make_shared<PacmanCmd>(this);
     pacmanCmd->addParam("sudo");
     pacmanCmd->addAskpass(config->getString(BuildCppWin::MAIN_GRP, BuildCppWin::ASKPASS_KEY));
-    pacmanCmd->addParam("/usr/bin/pacman");
+    pacmanCmd->addParam("pacman");
     pacmanCmd->addParam("--noconfirm");
     pacmanCmd->addParam("--sync");
     pacmanCmd->addParam("--refresh");

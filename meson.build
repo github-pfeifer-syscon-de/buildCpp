@@ -12,6 +12,7 @@ fs = import('fs')
 pkgdatadir = join_paths(get_option('prefix'), get_option('datadir'), meson.project_name())
 pkglocaledir = join_paths(get_option('prefix'), get_option('datadir'), 'locale')
 pkgsrcdir = fs.relative_to( meson.global_source_root(), meson.current_build_dir()) + '/src'
+add_project_arguments('-DPREFIX_DIR="' + get_option('prefix') + '"', language: ['cpp','c'])
 add_project_arguments('-DPACKAGE_DATA_DIR="' + pkgdatadir + '"', language: ['cpp','c'])
 add_project_arguments('-DPACKAGE="' + meson.project_name() + '"', language: ['cpp','c'])
 # this is to recreate the conventions from autotools
