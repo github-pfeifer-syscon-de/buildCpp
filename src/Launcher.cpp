@@ -271,7 +271,7 @@ Launcher::run(const PtrLaunchCmd& launchCmd)
     // Spawn child process.
     g_spawn_async_with_pipes(workDir.c_str() // workingdir
                             , &argv[0]  // arguments
-                            , nullptr   // env
+                            , launchCmd->getRunEnv()   // env
                             , static_cast<GSpawnFlags>(G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH)   //
                             , nullptr   // child_setup
                             , this      // user data

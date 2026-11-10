@@ -85,6 +85,9 @@ public:
         }
         return name;
     }
+    virtual char** getRunEnv() {
+        return nullptr;
+    };
 protected:
     std::vector<std::string> m_param;
     Glib::RefPtr<Gio::File> m_projDir;

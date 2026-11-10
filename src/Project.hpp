@@ -52,10 +52,11 @@ public:
         auto meson = m_file->get_child(Project::MESON_BUILD);
         return meson->query_exists();
     }
-    Glib::ustring getName();
+    Glib::ustring getName();    // this matches the directory name
     Glib::ustring getPath();
     Glib::ustring getLast();
     Glib::ustring getDiff();
+    std::string getPackName();  // this matches the name use in pkgbuild
     static void findPaths(const Glib::RefPtr<Gio::File>& fBuildRoot
             , const Glib::RefPtr<Gtk::ListStore>& list
             , ProjListColumns& listColumns
@@ -67,6 +68,7 @@ public:
         return m_cancel;
     }
     Glib::RefPtr<Gio::File> getBuildDir();
+    Glib::RefPtr<Gio::File> getSourcePkgbuild();
 
 protected:
 
@@ -76,6 +78,7 @@ private:
     Glib::ustring m_last;
     Glib::ustring m_diff;
     Glib::ustring m_name;
+    Glib::ustring m_packName;
 };
 
 
@@ -160,14 +163,16 @@ public:
     }
 
     explicit PacmanCmd(const PacmanCmd& other) = delete;
-    virtual ~PacmanCmd() = default;
+    virtual ~PacmanCmd();
     static constexpr auto ASKPASS_ENV{"SUDO_ASKPASS"};
     void addAskpass(const std::string& askpass);
     void prepare() override;
+    char** getRunEnv() override;
 
 
 private:
     Project* m_project;
     bool m_setaskPass{};
     std::string m_askpass;
+    gchar** m_runEnv{};
 };

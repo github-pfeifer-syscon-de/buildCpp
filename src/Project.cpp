@@ -57,10 +57,9 @@ PrepareCmd::run() {
 bool
 PrepareCmd::linkPkgbuild(Project* project)
 {
-    auto buildDir = project->getBuildDir();
-    auto buildRoot = buildDir->get_parent()->get_parent();
-    auto pkgBuild = buildRoot->get_child(project->getProjectDir()->get_basename() + Project::PKGBUILD_NAME);
+    auto pkgBuild = project->getSourcePkgbuild();
     if (pkgBuild->query_exists()) {
+        auto buildDir = project->getBuildDir();
         auto pkgBuildTarget = buildDir->get_child(Project::PKGBUILD_NAME);
         if (!pkgBuildTarget->query_exists()) {
             //pkgBuildTarget->query_file_type() != Gio::FileType::FILE_TYPE_SYMBOLIC_LINK) {
@@ -89,6 +88,13 @@ Repoadd::prepare()
     }
 }
 
+PacmanCmd::~PacmanCmd()
+{
+    if (m_runEnv != nullptr){
+        g_strfreev(m_runEnv);
+    }
+}
+
 void
 PacmanCmd::addAskpass(const std::string& askpass) {
     m_askpass = askpass;
@@ -112,9 +118,19 @@ PacmanCmd::prepare() {
     for (auto pack : packs) {
         addParam(pack->get_path());
     }
+}
+
+char**
+PacmanCmd::getRunEnv()
+{
     if (m_setaskPass) {
-        Glib::setenv(ASKPASS_ENV, m_askpass);
+        if (m_runEnv == nullptr) {
+            m_runEnv = g_get_environ();
+            g_environ_setenv(m_runEnv, ASKPASS_ENV, m_askpass.c_str(), TRUE);
+        }
+        return m_runEnv;
     }
+    return AsyncCmd::getRunEnv();
 }
 
 Glib::ustring
@@ -201,16 +217,54 @@ Project::getBuildCmds(const std::shared_ptr<KeyConfig>& config)
     auto pacmanCmd = std::make_shared<PacmanCmd>(this);
     pacmanCmd->addParam("sudo");
     pacmanCmd->addAskpass(config->getString(BuildCppWin::MAIN_GRP, BuildCppWin::ASKPASS_KEY));
+    pacmanCmd->addParam("--");
     pacmanCmd->addParam("pacman");
     pacmanCmd->addParam("--noconfirm");
     pacmanCmd->addParam("--sync");
     pacmanCmd->addParam("--refresh");
-    pacmanCmd->addParam(getName());
-    pacmanCmd->addParam(getName() + "-debug");
+    pacmanCmd->addParam(getPackName());
+    pacmanCmd->addParam(getPackName() + "-debug");
     pacmanCmd->setWorkDir(getBuildDir());
     commands.emplace_back(std::move(pacmanCmd));
 
     return commands;
+}
+
+Glib::RefPtr<Gio::File>
+Project::getSourcePkgbuild()
+{
+    auto buildDir = getBuildDir();
+    auto buildRoot = buildDir->get_parent()->get_parent();
+    auto pkgBuild = buildRoot->get_child(getProjectDir()->get_basename() + Project::PKGBUILD_NAME);
+    return pkgBuild;
+}
+
+std::string
+Project::getPackName()
+{
+    auto sourcePgkbuid = getSourcePkgbuild();
+    if (m_packName.empty()) {
+        if (sourcePgkbuid->query_exists()) {
+            auto stream = sourcePgkbuid->read();
+            auto buffered = Gio::DataInputStream::create(stream);
+            while (!buffered->is_closed()) {
+                std::string line;
+                if (!buffered->read_line(line)) {
+                    break;
+                }
+                if (line.starts_with("pkgname=")) {
+                    auto pos = line.find('=');
+                    ++pos;
+                    m_packName = line.substr(pos);
+                    break;
+                }
+            }
+        }
+        else {
+            m_packName = getName();
+        }
+    }
+    return m_packName;
 }
 
 
