@@ -172,6 +172,7 @@ BuildCppWin::runNext()
     PtrProjectCmd projectCmd;
     while (true) {  // work on sync commands
         if (m_commands.empty()) {
+            m_launcher.reset(); // recreate for each chain of commands
             return;
         }
         projectCmd = m_commands.front();
@@ -226,7 +227,7 @@ BuildCppWin::done(bool stat, int exit)
     }
     else {
         tag = m_tagFail;
-        msg = Glib::ustring::sprintf("Failed %d\n", exit);
+        msg = Glib::ustring::sprintf("Failed with exit %d\n", exit);
         m_commands.clear();     // stop executing
     }
     auto buf= m_textView->get_buffer();
