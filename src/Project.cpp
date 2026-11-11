@@ -126,7 +126,7 @@ PacmanCmd::getRunEnv()
     if (m_setaskPass) {
         if (m_runEnv == nullptr) {
             m_runEnv = g_get_environ();
-            g_environ_setenv(m_runEnv, ASKPASS_ENV, m_askpass.c_str(), TRUE);
+            [[maybe_unused]] auto env = g_environ_setenv(m_runEnv, ASKPASS_ENV, m_askpass.c_str(), TRUE);
         }
         return m_runEnv;
     }

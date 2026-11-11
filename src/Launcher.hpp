@@ -36,12 +36,13 @@ public:
 };
 
 
-class LineReader
+// this is a glib implementation for line reader (may work 4windows?)
+class LineReaderChannel
 {
 public:
-    LineReader(gint out, bool err, ReaderListener* readerListener);
-    explicit LineReader(const LineReader& orig) = delete;
-    virtual ~LineReader();
+    LineReaderChannel(gint out, bool err, ReaderListener* readerListener);
+    explicit LineReaderChannel(const LineReaderChannel& orig) = delete;
+    virtual ~LineReaderChannel();
 
     void done();
     void ready();
@@ -55,6 +56,30 @@ protected:
     ReaderListener* m_readerListener;
     guint m_source;
     bool m_done{};
+};
+
+// this is a glibmm implementation for line reader
+class LineReaderData
+{
+public:
+    LineReaderData(gint out, bool err, ReaderListener* readerListener);
+    explicit LineReaderData(const LineReaderData& orig) = delete;
+    virtual ~LineReaderData();
+
+    void drain();
+    void asyncReady(Glib::RefPtr<Gio::AsyncResult> result);
+
+protected:
+    void reads();
+
+    gint m_out;
+    bool m_err;
+    Glib::RefPtr<Gio::UnixInputStream> m_channel;
+    Glib::RefPtr<Gio::DataInputStream> m_dataStrm;
+    ReaderListener* m_readerListener;
+    guint m_source;
+    bool m_done{};
+    Glib::RefPtr<Gio::Cancellable> m_cancellable;
 };
 
 class LaunchCmd
@@ -116,8 +141,8 @@ protected:
 
 private:
     ReaderListener* m_readerListener;
-    std::shared_ptr<LineReader> m_readerStd;
-    std::shared_ptr<LineReader> m_readerErr;
+    std::shared_ptr<LineReaderData> m_readerStd;
+    std::shared_ptr<LineReaderData> m_readerErr;
     Glib::RefPtr<Gio::UnixOutputStream> m_strmStdin;
     gint child_stdout, child_stderr, child_stdin;
     GPid child_pid;

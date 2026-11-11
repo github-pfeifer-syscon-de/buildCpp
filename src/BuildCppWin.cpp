@@ -209,10 +209,10 @@ BuildCppWin::notify(bool err, const std::string& str)
     auto start = ins->get_iter();
     auto end = start;
     if (err) {
-        end = buf->insert_with_tag(start, str, m_tagErr);
+        end = buf->insert_with_tag(end, str, m_tagErr);
     }
     else {
-        end = buf->insert(start, str);
+        end = buf->insert(end, str);
     }
     m_textView->scroll_to(end);
 }

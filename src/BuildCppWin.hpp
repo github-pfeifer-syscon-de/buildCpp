@@ -45,9 +45,6 @@ public:
 class BuildCppApp;
 
 /*
- * Window that is the central visible piece of application,
- *   loaded from resource, uses subclassed components,
- *   uses settings to store and application state.
  */
 class BuildCppWin
 : public Gtk::ApplicationWindow

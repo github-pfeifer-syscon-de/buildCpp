@@ -64,9 +64,9 @@ child_watch_cb(GPid     pid,
 static gboolean
 cb_out_watch(GIOChannel *channel, GIOCondition cond, gpointer user_data)
 {
-    LineReader*  reader{};
+    LineReaderChannel*  reader{};
     if (user_data != nullptr) {
-         reader = static_cast<LineReader*>(user_data);
+         reader = static_cast<LineReaderChannel*>(user_data);
     }
     else {
         std::cout << ("cb_out_watch output no user_data!") << std::endl;
@@ -83,8 +83,7 @@ cb_out_watch(GIOChannel *channel, GIOCondition cond, gpointer user_data)
 }
 
 
-
-LineReader::LineReader(gint out, bool err, ReaderListener* readerListener)
+LineReaderChannel::LineReaderChannel(gint out, bool err, ReaderListener* readerListener)
 : m_out{out}
 , m_err{err}
 , m_readerListener{readerListener}
@@ -102,7 +101,7 @@ LineReader::LineReader(gint out, bool err, ReaderListener* readerListener)
     m_source = g_io_add_watch(m_channel, static_cast<GIOCondition>(G_IO_IN | G_IO_HUP), cb_out_watch, this);   // (GIOFunc)
 }
 
-LineReader::~LineReader()
+LineReaderChannel::~LineReaderChannel()
 {
     if (m_channel != nullptr) {
         g_io_channel_unref(m_channel);
@@ -111,13 +110,13 @@ LineReader::~LineReader()
 }
 
 void
-LineReader::done()
+LineReaderChannel::done()
 {
     m_done = true;
 }
 
 void
-LineReader::ready()
+LineReaderChannel::ready()
 {
     while (true) {
         g_autoptr(GError) error{};
@@ -144,7 +143,7 @@ LineReader::ready()
 }
 
 void
-LineReader::drain()
+LineReaderChannel::drain()
 {
     if (m_done) {   // have already shut this
         return;
@@ -170,7 +169,132 @@ LineReader::drain()
 
 // kept for reference, this is the classic "select/read" method (needs to be called on a separate thread)
 void
-LineReader::reads()
+LineReaderChannel::reads()
+{
+    std::array<char, 8192> outArr;
+    fd_set fdset;
+    FD_ZERO(&fdset); /* clear the set */
+    FD_SET(m_out, &fdset); /* add our file descriptor to the set */
+
+    fd_set fderr;
+
+    struct timespec timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = 50000000ul;
+
+    sigset_t sigset;
+    sigfillset(&sigset);    // any signal
+
+    while (true) { // !strm->is_closed()
+        //std::cout << "Readers::read fd " << m_out << std::endl;
+        FD_ZERO(&fderr); /* clear the set */
+        int rv = pselect(1, &fdset, NULL, &fderr, &timeout, NULL);
+        if (rv == -1) {
+            std::cout << "error select " <<  m_out << std::endl; /* an error accured */
+            break;
+        }
+        else if (rv == 0) {
+            //std::cout << "Reader::read timeout " << m_out << std::endl; /* a timeout occured */
+        }
+        else {
+            if (FD_ISSET(m_out, &fderr)) {
+                std::cout << "err set!" << m_out << std::endl;
+            }
+            auto sizeRead = read(m_out, outArr.data(), outArr.size()); /* there was data to read */
+            //std::cout << "Readers::read read " << sizeRead << std::endl;
+            //gsize sizeStd = strm->read(outArr.data(), outArr.size());
+            if (sizeRead > 0) {
+                std::cout << "Reader::read got " << sizeRead << std::endl;
+                std::string data(outArr.data(), sizeRead);    // use std::string as this may contain utf-8
+                //m_str += data;
+            }
+            else {
+                if (sizeRead < 0) {
+                    break;
+                }
+                //using namespace std::chrono_literals; // ns, us, ms, s, h, etc.
+                //std::this_thread::sleep_for(50ms);
+            }
+        }
+    }
+    //m_done = true;
+    std::cout << "Readers::reads done " << m_out << std::endl;
+}
+
+
+LineReaderData::LineReaderData(gint out, bool err, ReaderListener* readerListener)
+: m_out{out}
+, m_err{err}
+, m_channel{Gio::UnixInputStream::create(m_out,false)}
+, m_dataStrm{Gio::DataInputStream::create(m_channel)}
+, m_readerListener{readerListener}
+, m_cancellable{Gio::Cancellable::create()}
+{
+    // channels offer some convenient way to read stuff
+    //g_autoptr(GError) error{nullptr};
+    //g_io_channel_set_encoding(m_channel, nullptr, &error);
+    //if (error) {
+    //    psc::log::Log::logAdd(psc::log::Level::Error,
+    //                  [&] {
+    //                      return psc::fmt::format("error {} set enconding", error->message);
+    //                  });
+    //}
+    /* Add watches to channels (read/hup callback) */
+    //m_source = g_io_add_watch(m_channel, static_cast<GIOCondition>(G_IO_IN | G_IO_HUP), cb_out_watch, this);   // (GIOFunc)
+    m_dataStrm->read_line_async(sigc::mem_fun(*this, &LineReaderData::asyncReady), m_cancellable);
+}
+
+LineReaderData::~LineReaderData()
+{
+    if (m_channel) {
+        if (!m_done) {
+            m_channel->close();
+        }
+        //g_io_channel_unref(m_channel);
+    }
+    close(m_out);
+}
+
+void
+LineReaderData::asyncReady(Glib::RefPtr<Gio::AsyncResult> result)
+{
+    try {
+        std::string string;
+        m_dataStrm->read_line_finish(result, string);
+        string += '\n';
+        m_readerListener->notify(m_err, string);
+        if (!m_cancellable->is_cancelled()) {   // keep asking for more
+            m_dataStrm->read_line_async(sigc::mem_fun(*this, &LineReaderData::asyncReady), m_cancellable);
+        }
+    }
+    catch (const Glib::Error& error) {  // catch canceled
+        if (!m_cancellable->is_cancelled()) {   // ignore on cancel
+            std::cout << "LineReader::asyncReady " << error.what() << std::endl;
+        }
+    }
+}
+
+void
+LineReaderData::drain()
+{
+    if (m_done) {   // have already shut this
+        return;
+    }
+    //std::cout << "LineReader::drain " << static_cast<void*>(m_channel) << std::endl;
+    //if (!g_source_is_destroyed(m_source)) {   // there are different sources for gio&gtk
+    //g_source_remove(m_source);   // stop messaging
+    //}
+    std::vector<std::string> lines;
+    lines.reserve(32);
+    if (m_dataStrm->is_closed()) {
+        return;
+    }
+    m_cancellable->cancel();    // finish async
+}
+
+// kept for reference, this is the classic "select/read" method (needs to be called on a separate thread)
+void
+LineReaderData::reads()
 {
     std::array<char, 8192> outArr;
     fd_set fdset;
@@ -265,15 +389,15 @@ Launcher::run(const PtrLaunchCmd& launchCmd)
     // You could watch for output on @child_stdout and @child_stderr using
     // #GUnixInputStream or #GIOChannel here.
     //using namespace std::chrono_literals; // ns, us, ms, s, h, etc.
-    m_readerStd = std::make_shared<LineReader>(child_stdout, false, m_readerListener);
-    m_readerErr = std::make_shared<LineReader>(child_stderr, true, m_readerListener);
+    m_readerStd = std::make_shared<LineReaderData>(child_stdout, false, m_readerListener);
+    m_readerErr = std::make_shared<LineReaderData>(child_stderr, true, m_readerListener);
     m_strmStdin = Gio::UnixOutputStream::create(child_stdin, true);
 }
 
 void
 Launcher::communicate(const std::string& message)
 {
-    auto size = m_strmStdin->write(message);
+    [[maybe_unused]] auto size = m_strmStdin->write(message);
 }
 
 void
