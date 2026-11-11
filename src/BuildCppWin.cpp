@@ -172,6 +172,7 @@ BuildCppWin::runNext()
     PtrProjectCmd projectCmd;
     while (true) {  // work on sync commands
         if (m_commands.empty()) {
+            m_asyncCmd.reset(); // also drop reference
             m_launcher.reset(); // recreate for each chain of commands
             return;
         }
