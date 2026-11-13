@@ -193,7 +193,7 @@ BuildCppWin::runNext()
     if (!m_launcher) {
         m_launcher = std::make_shared<Launcher>(this);
     }
-    // important keep pointer referenced
+    // important: keep pointer referenced
     m_asyncCmd = std::dynamic_pointer_cast<AsyncCmd>(projectCmd);
     m_asyncCmd->prepare();
     notify(false, Glib::ustring::sprintf("Run %s\n", m_asyncCmd->getName()));
@@ -204,15 +204,21 @@ void
 BuildCppWin::notify(bool err, const std::string& str)
 {
     //std::cout << "Project::notify " << (err ? "err" : "std") << " " << string << std::endl;
+    insert(str, err ? m_tagErr : Glib::RefPtr<Gtk::TextBuffer::Tag>());
+}
+
+void
+BuildCppWin::insert(const Glib::ustring& msg, const Glib::RefPtr<Gtk::TextBuffer::Tag>& tag)
+{
     auto buf= m_textView->get_buffer();
     auto ins = buf->get_insert();
     auto start = ins->get_iter();
-    auto end = start;
-    if (err) {
-        end = buf->insert_with_tag(end, str, m_tagErr);
+    Gtk::TextIter end;
+    if (tag) {
+        end = buf->insert_with_tag(start, msg, tag);
     }
     else {
-        end = buf->insert(end, str);
+        end = buf->insert(start, msg);
     }
     m_textView->scroll_to(end);
 }
@@ -231,10 +237,7 @@ BuildCppWin::done(bool stat, int exit)
         msg = Glib::ustring::sprintf("Failed with exit %d\n", exit);
         m_commands.clear();     // stop executing
     }
-    auto buf= m_textView->get_buffer();
-    auto ins = buf->get_insert();
-    auto start = ins->get_iter();
-    buf->insert_with_tag(start, msg, tag);
+    insert(msg, tag);
     // avoid overlapping cleanup&startup
     Glib::signal_idle().connect( [&] () -> bool {
         runNext();

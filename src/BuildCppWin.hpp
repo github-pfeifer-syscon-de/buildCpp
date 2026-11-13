@@ -67,6 +67,7 @@ protected:
     void done(bool stat, int exit) override;
     void notify(bool err, const std::string& str) override;
     void runNext();
+    void insert(const Glib::ustring& msg, const Glib::RefPtr<Gtk::TextBuffer::Tag>& tag);
 
     ProjListColumns m_listColumns;
 

@@ -82,11 +82,21 @@ cb_out_watch(GIOChannel *channel, GIOCondition cond, gpointer user_data)
     return TRUE;
 }
 
-
-LineReaderChannel::LineReaderChannel(gint out, bool err, ReaderListener* readerListener)
+LineReader::LineReader(gint out, bool err, ReaderListener* readerListener)
 : m_out{out}
 , m_err{err}
 , m_readerListener{readerListener}
+{
+}
+
+void
+LineReader::done()
+{
+    m_done = true;
+}
+
+LineReaderChannel::LineReaderChannel(gint out, bool err, ReaderListener* readerListener)
+: LineReader{out, err, readerListener}
 {
     m_channel = g_io_channel_unix_new(m_out);   // channels offer some convenient way to read stuff
     g_autoptr(GError) error{nullptr};
@@ -103,16 +113,13 @@ LineReaderChannel::LineReaderChannel(gint out, bool err, ReaderListener* readerL
 
 LineReaderChannel::~LineReaderChannel()
 {
+    if (!m_done) {
+        g_io_channel_shutdown(m_channel, FALSE, nullptr);
+    }
     if (m_channel != nullptr) {
         g_io_channel_unref(m_channel);
     }
     close(m_out);
-}
-
-void
-LineReaderChannel::done()
-{
-    m_done = true;
 }
 
 void
@@ -223,11 +230,9 @@ LineReaderChannel::reads()
 
 
 LineReaderData::LineReaderData(gint out, bool err, ReaderListener* readerListener)
-: m_out{out}
-, m_err{err}
+: LineReader(out, err, readerListener)
 , m_channel{Gio::UnixInputStream::create(m_out,false)}
 , m_dataStrm{Gio::DataInputStream::create(m_channel)}
-, m_readerListener{readerListener}
 , m_cancellable{Gio::Cancellable::create()}
 {
     // channels offer some convenient way to read stuff
@@ -280,71 +285,12 @@ LineReaderData::drain()
     if (m_done) {   // have already shut this
         return;
     }
-    //std::cout << "LineReader::drain " << static_cast<void*>(m_channel) << std::endl;
-    //if (!g_source_is_destroyed(m_source)) {   // there are different sources for gio&gtk
-    //g_source_remove(m_source);   // stop messaging
-    //}
-    std::vector<std::string> lines;
-    lines.reserve(32);
     if (m_dataStrm->is_closed()) {
         return;
     }
     m_cancellable->cancel();    // finish async
 }
 
-// kept for reference, this is the classic "select/read" method (needs to be called on a separate thread)
-void
-LineReaderData::reads()
-{
-    std::array<char, 8192> outArr;
-    fd_set fdset;
-    FD_ZERO(&fdset); /* clear the set */
-    FD_SET(m_out, &fdset); /* add our file descriptor to the set */
-
-    fd_set fderr;
-
-    struct timespec timeout;
-    timeout.tv_sec = 0;
-    timeout.tv_nsec = 50000000ul;
-
-    sigset_t sigset;
-    sigfillset(&sigset);    // any signal
-
-    while (true) { // !strm->is_closed()
-        //std::cout << "Readers::read fd " << m_out << std::endl;
-        FD_ZERO(&fderr); /* clear the set */
-        int rv = pselect(1, &fdset, NULL, &fderr, &timeout, NULL);
-        if (rv == -1) {
-            std::cout << "error select " <<  m_out << std::endl; /* an error accured */
-            break;
-        }
-        else if (rv == 0) {
-            //std::cout << "Reader::read timeout " << m_out << std::endl; /* a timeout occured */
-        }
-        else {
-            if (FD_ISSET(m_out, &fderr)) {
-                std::cout << "err set!" << m_out << std::endl;
-            }
-            auto sizeRead = read(m_out, outArr.data(), outArr.size()); /* there was data to read */
-            //std::cout << "Readers::read read " << sizeRead << std::endl;
-            //gsize sizeStd = strm->read(outArr.data(), outArr.size());
-            if (sizeRead > 0) {
-                std::cout << "Reader::read got " << sizeRead << std::endl;
-                std::string data(outArr.data(), sizeRead);    // use std::string as this may contain utf-8
-                //m_str += data;
-            }
-            else {
-                if (sizeRead < 0) {
-                    break;
-                }
-                //using namespace std::chrono_literals; // ns, us, ms, s, h, etc.
-                //std::this_thread::sleep_for(50ms);
-            }
-        }
-    }
-    //m_done = true;
-    std::cout << "Readers::reads done " << m_out << std::endl;
-}
 
 
 void

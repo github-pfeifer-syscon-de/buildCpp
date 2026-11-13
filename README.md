@@ -18,3 +18,7 @@ meson compile
 
 ### Windows
 
+Untested my need to switch:
+<pre>
+LineReaderData -> LineReaderChannel
+</pre>

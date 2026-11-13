@@ -35,31 +35,45 @@ public:
     virtual void done(bool stat, int exit) = 0;
 };
 
+class LineReader
+{
+public:
+    LineReader(gint out, bool err, ReaderListener* readerListener);
+    explicit LineReader(const LineReader& orig) = delete;
+    virtual ~LineReader() = default;
+
+    void done();
+protected:
+    gint m_out;
+    bool m_err;
+    ReaderListener* m_readerListener;
+    guint m_source;
+    bool m_done{};
+};
 
 // this is a glib implementation for line reader (may work 4windows?)
+//   this is more of less blocking event handling,
+//   as the notifcation for data is in background,
+//   the effective reading happens on main-thread ...
 class LineReaderChannel
+: public LineReader
 {
 public:
     LineReaderChannel(gint out, bool err, ReaderListener* readerListener);
     explicit LineReaderChannel(const LineReaderChannel& orig) = delete;
     virtual ~LineReaderChannel();
 
-    void done();
     void ready();
     void drain();
 protected:
     void reads();
 
-    gint m_out;
-    bool m_err;
     GIOChannel* m_channel{};
-    ReaderListener* m_readerListener;
-    guint m_source;
-    bool m_done{};
 };
 
 // this is a glibmm implementation for line reader
 class LineReaderData
+: public LineReader
 {
 public:
     LineReaderData(gint out, bool err, ReaderListener* readerListener);
@@ -70,15 +84,9 @@ public:
     void asyncReady(Glib::RefPtr<Gio::AsyncResult> result);
 
 protected:
-    void reads();
 
-    gint m_out;
-    bool m_err;
     Glib::RefPtr<Gio::UnixInputStream> m_channel;
     Glib::RefPtr<Gio::DataInputStream> m_dataStrm;
-    ReaderListener* m_readerListener;
-    guint m_source;
-    bool m_done{};
     Glib::RefPtr<Gio::Cancellable> m_cancellable;
 };
 
