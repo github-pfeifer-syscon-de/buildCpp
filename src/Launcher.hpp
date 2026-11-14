@@ -42,13 +42,11 @@ public:
     explicit LineReader(const LineReader& orig) = delete;
     virtual ~LineReader() = default;
 
-    void done();
 protected:
     gint m_out;
     bool m_err;
     ReaderListener* m_readerListener;
     guint m_source;
-    bool m_done{};
 };
 
 // this is a glib implementation for line reader (may work 4windows?)
@@ -63,12 +61,14 @@ public:
     explicit LineReaderChannel(const LineReaderChannel& orig) = delete;
     virtual ~LineReaderChannel();
 
+    void done();
     void ready();
     void drain();
 protected:
     void reads();
 
     GIOChannel* m_channel{};
+    bool m_done{};
 };
 
 // this is a glibmm implementation for line reader

@@ -89,11 +89,6 @@ LineReader::LineReader(gint out, bool err, ReaderListener* readerListener)
 {
 }
 
-void
-LineReader::done()
-{
-    m_done = true;
-}
 
 LineReaderChannel::LineReaderChannel(gint out, bool err, ReaderListener* readerListener)
 : LineReader{out, err, readerListener}
@@ -120,6 +115,12 @@ LineReaderChannel::~LineReaderChannel()
         g_io_channel_unref(m_channel);
     }
     close(m_out);
+}
+
+void
+LineReaderChannel::done()
+{
+    m_done = true;
 }
 
 void
@@ -251,11 +252,16 @@ LineReaderData::LineReaderData(gint out, bool err, ReaderListener* readerListene
 
 LineReaderData::~LineReaderData()
 {
-    if (m_channel) {
-        if (!m_done) {
+    try {
+        if (m_dataStrm) {
+            m_dataStrm->close();
+        }
+        if (m_channel) {
             m_channel->close();
         }
-        //g_io_channel_unref(m_channel);
+    }
+    catch (const std::exception& exc) {
+        std::cout << "Error "<<  exc.what() << "closing " << m_out << std::endl;
     }
     close(m_out);
 }
@@ -282,9 +288,6 @@ LineReaderData::asyncReady(Glib::RefPtr<Gio::AsyncResult> result)
 void
 LineReaderData::drain()
 {
-    if (m_done) {   // have already shut this
-        return;
-    }
     if (m_dataStrm->is_closed()) {
         return;
     }

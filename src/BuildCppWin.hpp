@@ -73,9 +73,11 @@ protected:
 
     Glib::RefPtr<Gtk::ListStore> findPaths();
     void build();
+    void git();
     void load_config();
     void save_config();
     void activate_actions();
+    PtrProject getProject();
 
     BuildCppApp *m_application;
     Gtk::TextView* m_textView{};

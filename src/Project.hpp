@@ -27,6 +27,8 @@
 class ProjListColumns;
 class ProjectCmd;
 
+using PtrProjectCmd = std::shared_ptr<ProjectCmd>;
+
 class Project
 {
 public:
@@ -47,7 +49,8 @@ public:
     static constexpr auto PACK_SUFFIX{".tar.zst"};
     static constexpr auto PKGBUILD_NAME{"PKGBUILD"};
 
-    std::list<std::shared_ptr<ProjectCmd>> getBuildCmds(const std::shared_ptr<KeyConfig>& config);
+    std::list<PtrProjectCmd> getBuildCmds(const std::shared_ptr<KeyConfig>& config);
+    std::list<PtrProjectCmd> getGitCmds(const std::shared_ptr<KeyConfig>& config);
     bool isUsable() {
         auto meson = m_file->get_child(Project::MESON_BUILD);
         return meson->query_exists();
@@ -81,6 +84,7 @@ private:
     Glib::ustring m_packName;
 };
 
+using PtrProject = std::shared_ptr<Project>;
 
 class ProjectCmd
 {
@@ -155,26 +159,66 @@ private:
     Project* m_project;
 };
 
-class PacmanCmd
+class AsyncAskCmd
 : public AsyncCmd
 {
 public:
-    PacmanCmd(Project* project)
+    AsyncAskCmd(Project* project)
     : m_project{project}
     {
     }
+    explicit AsyncAskCmd(const AsyncAskCmd& other) = delete;
+    virtual ~AsyncAskCmd();
 
-    explicit PacmanCmd(const PacmanCmd& other) = delete;
-    virtual ~PacmanCmd();
-    static constexpr auto ASKPASS_ENV{"SUDO_ASKPASS"};
-    void addAskpass(const std::string& askpass);
-    void prepare() override;
+    virtual std::string getAskPassEnv() = 0;
+    virtual void addAskpass(const std::string& askpass);
     char** getRunEnv() override;
 
-
-private:
+protected:
     Project* m_project;
     bool m_setaskPass{};
     std::string m_askpass;
     gchar** m_runEnv{};
+
 };
+
+class PacmanCmd
+: public AsyncAskCmd
+{
+public:
+    PacmanCmd(Project* project)
+    : AsyncAskCmd(project)
+    {
+    }
+    explicit PacmanCmd(const PacmanCmd& other) = delete;
+    virtual ~PacmanCmd() = default;
+    static constexpr auto ASKPASS_ENV{"SUDO_ASKPASS"};
+    void addAskpass(const std::string& askpass) override;
+    void prepare() override;
+    std::string getAskPassEnv() override {
+        return ASKPASS_ENV;
+    }
+
+
+private:
+};
+
+class GitCmd
+: public AsyncAskCmd
+{
+public:
+    GitCmd(Project* project)
+    : AsyncAskCmd(project)
+    {
+    }
+    explicit GitCmd(const GitCmd& other) = delete;
+    virtual ~GitCmd() = default;
+    static constexpr auto ASKPASS_ENV{"SSH_ASKPASS"};
+    std::string getAskPassEnv() override {
+        return ASKPASS_ENV;
+    }
+
+private:
+
+};
+

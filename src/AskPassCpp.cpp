@@ -24,9 +24,7 @@ AskPassCpp::AskPassCpp(int argc, char **argv)
 : Gtk::Application(argc, argv
             , "de.pfeifer_syscon.askpasscpp"
             , Gio::APPLICATION_HANDLES_COMMAND_LINE)
-
 {
-
 }
 
 int
@@ -76,6 +74,7 @@ AskPassCpp::run()
     }
     catch (const Glib::Error &ex) {
         std::cerr << "Unable to load askpass-dlg: " << ex.what() << std::endl;
+        ret = 1;
     }
     return ret;
 }
@@ -122,5 +121,5 @@ int main(int argc, char** argv)
     Glib::init();
 
     AskPassCpp app(argc, argv);
-    return app.run();  // don't return default == 1
+    return app.run();
 }

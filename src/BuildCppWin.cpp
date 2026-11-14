@@ -37,8 +37,8 @@ BuildCppWin::BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builde
     set_icon(pix);
     builder->get_widget("text_view", m_textView);
     builder->get_widget("tree_view", m_treeView);
-    Gtk::Button* btn_build{};
-    builder->get_widget("btn_build", btn_build);
+    //Gtk::Button* btn_build{};
+    //builder->get_widget("btn_build", btn_build);
 
     load_config();
     activate_actions();
@@ -48,14 +48,13 @@ BuildCppWin::BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builde
     m_treeView->append_column("Diff", m_listColumns.diff);
     m_treeView->set_model(findPaths());
 
-
     m_tagErr = m_textView->get_buffer()->create_tag();
     m_tagErr->property_foreground_rgba().set_value(Gdk::RGBA("#e0c040"));
     m_tagOk = m_textView->get_buffer()->create_tag();
     m_tagOk->property_foreground_rgba().set_value(Gdk::RGBA("#40e040"));
     m_tagFail = m_textView->get_buffer()->create_tag();
     m_tagFail->property_foreground_rgba().set_value(Gdk::RGBA("#e04040"));
-    btn_build->signal_clicked().connect(sigc::mem_fun(*this, &BuildCppWin::build));
+    //btn_build->signal_clicked().connect(sigc::mem_fun(*this, &BuildCppWin::build));
 
     // not working see CalcTextView
     //set_events(Gdk::KEY_PRESS_MASK);
@@ -67,24 +66,48 @@ BuildCppWin::BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builde
 void
 BuildCppWin::activate_actions()
 {
+    add_action("build",
+        sigc::mem_fun(*this, &BuildCppWin::build));
+    add_action("git",
+        sigc::mem_fun(*this, &BuildCppWin::git));
+}
 
+PtrProject
+BuildCppWin::getProject()
+{
+    auto iter = m_treeView->get_selection()->get_selected();
+    if (iter) {
+        auto row = *iter;
+        return row.get_value(m_listColumns.proj);
+    }
+    else {
+        show_error("Please select project.");
+    }
+    return std::shared_ptr<Project>();
 }
 
 void
 BuildCppWin::build()
 {
-    auto iter = m_treeView->get_selection()->get_selected();
-    if (iter) {
-        auto row = *iter;
-        auto proj = row.get_value(m_listColumns.proj);
+    auto proj = getProject();
+    if (proj) {
         auto cmds = proj->getBuildCmds(m_settings);
         m_commands.splice(m_commands.end(), cmds);
         runNext();
     }
-    else {
-        show_error("Please select project.");
+}
+
+void
+BuildCppWin::git()
+{
+    auto proj = getProject();
+    if (proj) {
+        auto cmds = proj->getGitCmds(m_settings);
+        m_commands.splice(m_commands.end(), cmds);
+        runNext();
     }
 }
+
 
 Glib::RefPtr<Gtk::ListStore>
 BuildCppWin::findPaths()

@@ -88,7 +88,7 @@ Repoadd::prepare()
     }
 }
 
-PacmanCmd::~PacmanCmd()
+AsyncAskCmd::~AsyncAskCmd()
 {
     if (m_runEnv != nullptr){
         g_strfreev(m_runEnv);
@@ -96,21 +96,43 @@ PacmanCmd::~PacmanCmd()
 }
 
 void
-PacmanCmd::addAskpass(const std::string& askpass) {
+AsyncAskCmd::addAskpass(const std::string& askpass) {
     m_askpass = askpass;
-    auto askpassEnv = Glib::getenv(ASKPASS_ENV);
+    auto askpassEnv = Glib::getenv(getAskPassEnv());
     if (askpassEnv.empty()) {
         if (m_askpass.empty()) {
-            std::cout << "A existing environment var SUDO_ASKPASS was not found, "
+            std::cout << "A existing environment var " << getAskPassEnv() << " was not found, "
                           "and the setting ~/.config/buildcpp.conf Askpass=path_askpass_executable was missing as well, "
-                          "this might work if the user can use sudo directly (not recommended)" << std::endl;
+                          "this might work if the user can use sudo/ssh directly (not recommended)" << std::endl;
         }
         else {
             m_setaskPass = true;
         }
     }
+}
+
+
+char**
+AsyncAskCmd::getRunEnv()
+{
+    if (m_setaskPass) {
+        if (m_runEnv == nullptr) {
+            auto askpassEnv = getAskPassEnv();
+            m_runEnv = g_get_environ();
+            [[maybe_unused]] auto env = g_environ_setenv(m_runEnv, askpassEnv.c_str(), m_askpass.c_str(), TRUE);
+        }
+        return m_runEnv;
+    }
+    return AsyncCmd::getRunEnv();
+}
+
+void
+PacmanCmd::addAskpass(const std::string& askpass)
+{
+    AsyncAskCmd::addAskpass(askpass);
     addParam("--askpass");
 }
+
 
 void
 PacmanCmd::prepare() {
@@ -118,19 +140,6 @@ PacmanCmd::prepare() {
     for (auto pack : packs) {
         addParam(pack->get_path());
     }
-}
-
-char**
-PacmanCmd::getRunEnv()
-{
-    if (m_setaskPass) {
-        if (m_runEnv == nullptr) {
-            m_runEnv = g_get_environ();
-            [[maybe_unused]] auto env = g_environ_setenv(m_runEnv, ASKPASS_ENV, m_askpass.c_str(), TRUE);
-        }
-        return m_runEnv;
-    }
-    return AsyncCmd::getRunEnv();
 }
 
 Glib::ustring
@@ -229,6 +238,21 @@ Project::getBuildCmds(const std::shared_ptr<KeyConfig>& config)
 
     return commands;
 }
+
+std::list<PtrProjectCmd>
+Project::getGitCmds(const std::shared_ptr<KeyConfig>& config)
+{
+    std::list<PtrProjectCmd> commands;
+    auto asyncCmd = std::make_shared<GitCmd>(this);
+    asyncCmd->addAskpass(config->getString(BuildCppWin::MAIN_GRP, BuildCppWin::ASKPASS_KEY));
+    asyncCmd->addParam("setsid");   // use separate session see ssh/SSH_ASKPASS https://unix.stackexchange.com/questions/83986/tell-ssh-to-use-a-graphical-prompt-for-key-passphrase
+    asyncCmd->addParam("git");
+    asyncCmd->addParam("pull");
+    asyncCmd->setWorkDir(getBuildDir());
+    commands.emplace_back(std::move(asyncCmd));
+    return commands;
+}
+
 
 Glib::RefPtr<Gio::File>
 Project::getSourcePkgbuild()
