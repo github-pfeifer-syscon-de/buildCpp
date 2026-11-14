@@ -299,11 +299,7 @@ Project::findPaths(const Glib::RefPtr<Gio::File>& fBuildRoot
         , const Glib::RefPtr<Gio::Cancellable>& cancel)
 {
     auto iter = fBuildRoot->enumerate_children(cancel);
-    while (true) {
-        auto fileInfo = iter->next_file();
-        if (!fileInfo) {
-            break;
-        }
+    while (auto fileInfo = iter->next_file()) {
         if (fileInfo->get_file_type() == Gio::FileType::FILE_TYPE_DIRECTORY) {
             auto chld = iter->get_child(fileInfo);
             auto proj = std::make_shared<Project>(chld, cancel);
@@ -317,6 +313,7 @@ Project::findPaths(const Glib::RefPtr<Gio::File>& fBuildRoot
             }
         }
     }
+    list->set_sort_column(listColumns.path, Gtk::SortType::SORT_ASCENDING);
 }
 
 Glib::RefPtr<Gio::File>
