@@ -58,7 +58,7 @@ public:
     void apply_font(bool defaultFont);
     BuildCppApp *getApplication();
     std::shared_ptr<KeyConfig> getSettings();
-
+    void create();
     static constexpr auto MAIN_GRP{"Main"};
     static constexpr auto PROJ_ROOT_KEY{"ProjRoot"};
     static constexpr auto PACMAN_DB_KEY{"PacmanDb"};

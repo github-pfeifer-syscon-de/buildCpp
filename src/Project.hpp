@@ -194,7 +194,6 @@ public:
     virtual ~PacmanCmd() = default;
     static constexpr auto ASKPASS_ENV{"SUDO_ASKPASS"};
     void addAskpass(const std::string& askpass) override;
-    void prepare() override;
     std::string getAskPassEnv() override {
         return ASKPASS_ENV;
     }

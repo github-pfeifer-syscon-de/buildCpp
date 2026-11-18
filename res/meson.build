@@ -19,6 +19,14 @@ install_data(
 install_data(
       meson.project_name() + '.desktop'
     , install_dir: join_paths(dataDir, 'applications'))
+install_data(
+    ['meson_build.xslt'
+     , 'res_desktop.xslt'
+     , 'res_gresources.xslt'
+     , 'res_meson_build.xslt'
+     , 'res_win_ui.xslt'
+    ]
+    , install_dir: join_paths(dataDir, meson.project_name()))
 
 win_res_file = []
 if target_machine.system() == 'windows'     # expects resource compiler, disable if you don't have one (part of msys2 but not claimed by any package... )

@@ -43,11 +43,13 @@ conf_file = configure_file(output : meson.project_name() + '_config.h'
 gtkmm3_deps     = dependency('gtkmm-3.0')
 glibmm2_deps    = dependency('glibmm-2.4 giomm-2.4')
 thread_deps     = dependency('threads')
+xslt_deps       = dependency('libxslt libxml-2.0')
 genericimg_deps = dependency('genericimg', version :'>= 0.4.13')
 #openssl_deps    = dependency('openssl')
 deps = [gtkmm3_deps
     , glibmm2_deps
     , thread_deps
+    , xslt_deps
     , genericimg_deps
     ]
 subdir('src')

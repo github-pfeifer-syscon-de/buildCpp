@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
+#include "Template.hpp"
+#include <Log.hpp> // formatter Glib::Error
 #include <StringUtils.hpp>
+#include <iostream>
 #include <psc_Files.hpp>
-#include <Log.hpp>  // formatter Glib::Error
-#include <cstring>
 
-
-#include "BuildCppWin.hpp"
 #include "BuildCppApp.hpp"
+#include "BuildCppWin.hpp"
 #include "buildcpp_config.h"
 
 BuildCppWin::BuildCppWin(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builder>& builder, BuildCppApp *application)
@@ -69,7 +68,9 @@ BuildCppWin::activate_actions()
     add_action("build",
         sigc::mem_fun(*this, &BuildCppWin::build));
     add_action("git",
-        sigc::mem_fun(*this, &BuildCppWin::git));
+        sigc::mem_fun(*this, &BuildCppWin::git));   // &BuildCppWin::git
+    add_action("add",
+        sigc::mem_fun(*this, &BuildCppWin::create));   // &BuildCppWin::git
 }
 
 PtrProject
@@ -106,6 +107,20 @@ BuildCppWin::git()
         m_commands.splice(m_commands.end(), cmds);
         runNext();
     }
+}
+
+void
+BuildCppWin::create()
+{
+    std::string name{"buildTest"};
+    Template codeTemplate;
+    auto projRoot = m_settings->getString(MAIN_GRP, PROJ_ROOT_KEY);
+    auto fProjRoot = Gio::File::create_for_parse_name(projRoot);
+    auto fBuild = fProjRoot->get_child(name);
+    BuildData buildData( fBuild
+        , m_application->get_exec_path()
+        , name);
+    codeTemplate.buildProj(buildData);
 }
 
 
@@ -267,4 +282,3 @@ BuildCppWin::done(bool stat, int exit)
         return false;
     });
 }
-

@@ -118,8 +118,8 @@ AsyncAskCmd::getRunEnv()
     if (m_setaskPass) {
         if (m_runEnv == nullptr) {
             auto askpassEnv = getAskPassEnv();
-            m_runEnv = g_get_environ();
-            [[maybe_unused]] auto env = g_environ_setenv(m_runEnv, askpassEnv.c_str(), m_askpass.c_str(), TRUE);
+            auto env = g_get_environ();
+            m_runEnv = g_environ_setenv(env, askpassEnv.c_str(), m_askpass.c_str(), TRUE);
         }
         return m_runEnv;
     }
@@ -131,15 +131,6 @@ PacmanCmd::addAskpass(const std::string& askpass)
 {
     AsyncAskCmd::addAskpass(askpass);
     addParam("--askpass");
-}
-
-
-void
-PacmanCmd::prepare() {
-    auto packs = findPackages(m_project);
-    for (auto pack : packs) {
-        addParam(pack->get_path());
-    }
 }
 
 Glib::ustring

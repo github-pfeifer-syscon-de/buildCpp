@@ -16,6 +16,10 @@ cd build
 meson compile
 </pre>
 
+The install/pacman step needs askpasscpp installed,
+so this can't be tested from rundir 
+(Alternative: use other graphical password util, in buildcpp.conf). 
+
 ### Windows
 
 Untested may need to switch:

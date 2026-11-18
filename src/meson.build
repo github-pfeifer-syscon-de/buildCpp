@@ -4,6 +4,7 @@ sources = files(
     , 'BuildCppWin.cpp'
     , 'Project.cpp'
     , 'Launcher.cpp'
+    , 'Template.cpp'
     )
 
 src_askpass = files(
